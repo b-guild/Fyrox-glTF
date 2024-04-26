@@ -8,8 +8,9 @@ use crate::{
         algebra::Vector2, math::Rect, pool::Handle, reflect::prelude::*, scope_profile,
         type_traits::prelude::*, uuid_provider, variable::InheritableVariable, visitor::prelude::*,
     },
+    define_constructor,
     draw::{CommandTexture, Draw, DrawingContext},
-    message::UiMessage,
+    message::{MessageDirection, UiMessage},
     widget::{Widget, WidgetBuilder},
     BuildContext, Control, UiNode, UserInterface,
 };
@@ -77,6 +78,14 @@ impl GridDimension {
     pub fn auto() -> Self {
         Self::generic(SizeMode::Auto, 0.0)
     }
+    /// Compare using [`f32::total_cmp`] to check for total equality of size mode and desired size,
+    /// ensuring that NaN values compare as equal when they are actually equal,
+    /// while [`GridDimension::eq`] would return false for NaN values.
+    /// Also unlike `eq`, this method ignores `actual_size` and `location`.
+    pub fn total_eq(&self, other: &GridDimension) -> bool {
+        self.size_mode == other.size_mode
+            && self.desired_size.total_cmp(&other.desired_size) == std::cmp::Ordering::Equal
+    }
 }
 
 /// Type alias for grid columns.
@@ -84,6 +93,40 @@ pub type Column = GridDimension;
 
 /// Type alias for grid rows.
 pub type Row = GridDimension;
+
+/// Messages to change the dimensions of the rows and columns of a grid.
+#[derive(Debug, Clone)]
+pub enum GridMessage {
+    /// Replace the rows of the grid with the given rows.
+    Rows(Vec<Row>),
+    /// Replace the columns of the grid with the given columns.
+    Columns(Vec<Column>),
+}
+
+impl Eq for GridMessage {}
+
+impl PartialEq for GridMessage {
+    fn eq(&self, other: &GridMessage) -> bool {
+        match (self, other) {
+            (GridMessage::Rows(xs), GridMessage::Rows(ys))
+            | (GridMessage::Columns(xs), GridMessage::Columns(ys)) => {
+                xs.iter().zip(ys.iter()).all(|(x, y)| x.total_eq(y))
+            }
+            _ => false,
+        }
+    }
+}
+
+impl GridMessage {
+    define_constructor!(
+        /// Creates [`GridMessage::Rows`] message.
+        GridMessage:Rows => fn rows(Vec<GridDimension>), layout: false
+    );
+    define_constructor!(
+        /// Creates [`GridMessage::Columns`] message.
+        GridMessage:Rows => fn columns(Vec<GridDimension>), layout: false
+    );
+}
 
 /// Grids are one of several methods to position multiple widgets in relation to each other. A Grid widget, as the name
 /// implies, is able to position children widgets into a grid of specifically sized rows and columns.
@@ -505,6 +548,22 @@ impl Control for Grid {
 
     fn handle_routed_message(&mut self, ui: &mut UserInterface, message: &mut UiMessage) {
         self.widget.handle_routed_message(ui, message);
+        if message.destination() == self.handle && message.direction() == MessageDirection::ToWidget
+        {
+            match message.data::<GridMessage>() {
+                Some(GridMessage::Rows(rs)) => {
+                    self.rows
+                        .set_value_and_mark_modified(RefCell::new(rs.clone()));
+                    self.invalidate_layout();
+                }
+                Some(GridMessage::Columns(cs)) => {
+                    self.columns
+                        .set_value_and_mark_modified(RefCell::new(cs.clone()));
+                    self.invalidate_layout();
+                }
+                None => (),
+            }
+        }
     }
 }
 

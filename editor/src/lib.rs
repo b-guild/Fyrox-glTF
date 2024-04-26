@@ -98,6 +98,7 @@ use crate::fyrox::{
 };
 use crate::{
     absm::AbsmEditor,
+    animation::AnimationDataEditor,
     animation::AnimationEditor,
     asset::AssetBrowser,
     audio::{preview::AudioPreviewPanel, AudioPanel},
@@ -503,6 +504,7 @@ pub struct Editor {
     pub build_window: BuildWindow,
     pub scene_settings: SceneSettingsWindow,
     pub animation_editor: AnimationEditor,
+    pub animation_data_editor: AnimationDataEditor,
     pub particle_system_control_panel: ParticleSystemPreviewControlPanel,
     pub camera_control_panel: CameraPreviewControlPanel,
     pub audio_preview_panel: AudioPreviewPanel,
@@ -608,6 +610,7 @@ impl Editor {
         let log = LogPanel::new(ctx, log_message_receiver);
         let inspector = Inspector::new(ctx, message_sender.clone());
         let animation_editor = AnimationEditor::new(ctx);
+        let animation_data_editor = AnimationDataEditor::new(ctx);
         let absm_editor = AbsmEditor::new(ctx, message_sender.clone());
         let particle_system_control_panel =
             ParticleSystemPreviewControlPanel::new(scene_viewer.frame(), ctx);
@@ -802,6 +805,7 @@ impl Editor {
         let editor = Self {
             docking_manager,
             animation_editor,
+            animation_data_editor,
             engine,
             navmesh_panel,
             scene_viewer,
@@ -1219,6 +1223,16 @@ impl Editor {
                     &self.message_sender,
                     game_scene.graph_switches.node_overrides.as_mut().unwrap(),
                 );
+                self.animation_data_editor.handle_ui_message(
+                    message,
+                    &current_scene_entry.selection,
+                    graph,
+                    game_scene.scene_content_root,
+                    engine.user_interfaces.first_mut(),
+                    &engine.resource_manager,
+                    &self.message_sender,
+                    game_scene.graph_switches.node_overrides.as_mut().unwrap(),
+                );
                 self.absm_editor.handle_ui_message(
                     message,
                     &self.message_sender,
@@ -1577,6 +1591,11 @@ impl Editor {
                     engine.user_interfaces.first_mut(),
                     &engine.scenes[game_scene.scene].graph,
                 );
+                self.animation_data_editor.sync_to_model(
+                    &current_scene_entry.selection,
+                    engine.user_interfaces.first_mut(),
+                    &engine.scenes[game_scene.scene].graph,
+                );
                 self.absm_editor.sync_to_model(
                     &current_scene_entry.selection,
                     &engine.scenes[game_scene.scene].graph,
@@ -1609,6 +1628,11 @@ impl Editor {
             } else if let Some(ui_scene) = current_scene_entry.controller.downcast_mut::<UiScene>()
             {
                 self.animation_editor.sync_to_model(
+                    &current_scene_entry.selection,
+                    engine.user_interfaces.first_mut(),
+                    &ui_scene.ui,
+                );
+                self.animation_data_editor.sync_to_model(
                     &current_scene_entry.selection,
                     engine.user_interfaces.first_mut(),
                     &ui_scene.ui,
@@ -2237,11 +2261,21 @@ impl Editor {
                     self.engine.user_interfaces.first(),
                     &self.engine.scenes[game_scene.scene].graph,
                 );
+                self.animation_data_editor.update(
+                    &entry.selection,
+                    self.engine.user_interfaces.first(),
+                    &self.engine.scenes[game_scene.scene].graph,
+                );
                 self.audio_preview_panel
                     .update(&entry.selection, game_scene, &self.engine);
                 self.scene_viewer.update(game_scene, &mut self.engine);
             } else if let Some(ui_scene) = entry.controller.downcast_ref::<UiScene>() {
                 self.animation_editor.update(
+                    &entry.selection,
+                    self.engine.user_interfaces.first(),
+                    &ui_scene.ui,
+                );
+                self.animation_data_editor.update(
                     &entry.selection,
                     self.engine.user_interfaces.first(),
                     &ui_scene.ui,

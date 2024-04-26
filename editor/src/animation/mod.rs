@@ -40,11 +40,17 @@ use crate::{
 use std::any::{Any, TypeId};
 
 pub mod command;
+mod data;
 mod ruler;
 pub mod selection;
 mod thumb;
 mod toolbar;
 mod track;
+pub use data::*;
+
+const TIME_ICON: &[u8] = include_bytes!("../../resources/time.png");
+const KEY_ICON: &[u8] = include_bytes!("../../resources/key.png");
+const CLEAR_ICON: &[u8] = include_bytes!("../../resources/clear.png");
 
 pub trait PreviewData {
     fn enter(&mut self);
